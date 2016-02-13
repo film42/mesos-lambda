@@ -1,0 +1,3 @@
+*.dSYM
+vendor/*
+scheduler
