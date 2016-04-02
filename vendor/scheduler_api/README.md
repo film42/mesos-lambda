@@ -1,4 +1,4 @@
-Simple-Web-Server
+Simple-Web-Server (<https://github.com/eidheim/Simple-Web-Server>)
 =================
 
 A very simple, fast, multithreaded, platform independent HTTP and HTTPS server and client library implemented using C++11 and Boost.Asio. Created to be an easy way to make REST resources available from C++ applications. 
