@@ -69,7 +69,7 @@ int main() {
       std::cout << "Processing..." << std::endl;
 
       // Constants
-      std::string master = "10.0.0.76:5050";
+      std::string master = "192.168.1.248:5050";
 
       // Request specific
       std::string name = json["name"];

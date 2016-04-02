@@ -10,3 +10,8 @@ their build instructions.
 
 For some reason I cannot remember right now, I needed to add `vendor/protobuf-2.5.0`, which can be
 found in the mesos-0.27.0 release. This should probably be cleaned up.
+
+### Show me an example already!
+
+Sure thing, check out the [MapReduce example and example output over here](mesos_lambda_map_reduce).
+
