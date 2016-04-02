@@ -1,0 +1,84 @@
+From 228b5b62e1aa3632c3231109fc86b5be30769c5f Mon Sep 17 00:00:00 2001
+From: Garrett Thornburg <film42@gmail.com>
+Date: Sat, 2 Apr 2016 11:05:29 -0600
+Subject: [PATCH 1/1] Allow response from docker to be sent to framework
+
+---
+ src/docker/executor.cpp | 22 +++++++++++++++++++++-
+ 1 file changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/src/docker/executor.cpp b/src/docker/executor.cpp
+index 654a41d..2eb7c91 100644
+--- a/src/docker/executor.cpp
++++ b/src/docker/executor.cpp
+@@ -41,6 +41,12 @@
+ 
+ #include "messages/messages.hpp"
+ 
++// Added dependencies
++#include <algorithm>
++#include <string>
++#include <fstream>
++#include <streambuf>
++
+ using namespace mesos;
+ using namespace process;
+ 
+@@ -132,6 +138,11 @@ public:
+ 
+     CHECK(task.container().type() == ContainerInfo::DOCKER);
+ 
++    // HACK: Create output filename. This should remain in memory, but for
++    // now, yolo!
++    m_stdout_capture_filename = "/tmp/" + containerName + "_" + taskId.value() + "-stdout.txt";
++    std::replace(m_stdout_capture_filename.begin(), m_stdout_capture_filename.end(), ' ', '_');
++
+     // We're adding task and executor resources to launch docker since
+     // the DockerContainerizer updates the container cgroup limits
+     // directly and it expects it to be the sum of both task and
+@@ -146,7 +157,7 @@ public:
+         mappedDirectory,
+         task.resources() + task.executor().resources(),
+         None(),
+-        Subprocess::FD(STDOUT_FILENO),
++        Subprocess::PATH(m_stdout_capture_filename),
+         Subprocess::FD(STDERR_FILENO))
+       .onAny(defer(
+         self(),
+@@ -287,10 +298,16 @@ private:
+             state = TASK_FINISHED;
+           }
+ 
++          // Attempt to read from the file.
++          std::ifstream stdout_as_file(m_stdout_capture_filename);
++          std::string stdout_content( (std::istreambuf_iterator<char>(stdout_as_file) ),
++                                      (std::istreambuf_iterator<char>() ) );
++
+           TaskStatus taskStatus;
+           taskStatus.mutable_task_id()->CopyFrom(taskId);
+           taskStatus.set_state(state);
+           taskStatus.set_message(message);
++          taskStatus.set_data(stdout_content);
+           if (killed && killedByHealthCheck) {
+             taskStatus.set_healthy(false);
+           }
+@@ -410,6 +427,7 @@ private:
+   string containerName;
+   string sandboxDirectory;
+   string mappedDirectory;
++  std::string m_stdout_capture_filename;
+   Duration stopTimeout;
+   Option<Future<Nothing>> run;
+   Future<Nothing> stop;
+@@ -576,6 +594,8 @@ int main(int argc, char** argv)
+       flags.docker_socket.get(),
+       false);
+ 
++  std::cout << "YOLO! I'm  HERE YO!" << std::endl;
++
+   if (docker.isError()) {
+     cerr << "Unable to create docker abstraction: " << docker.error() << endl;
+     return EXIT_FAILURE;
+-- 
+2.5.0
+
