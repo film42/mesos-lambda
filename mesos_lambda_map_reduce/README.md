@@ -4,7 +4,17 @@ MapReduce Example
 This is a really dumb example, but it gets the point across. It's using `lambda/ruby_calc` from the `examples` directory of this project.
 Here's an example execution of the map reduce example:
 
+
 ```
+# 1. Make sure the mesos master and slave are started with a docker containerizer.
+# 2. Change the mesos master ip in src/server.cpp, make and run the scheduler_server program.
+mesos_lambda $ make
+mesos_lambda $ ./scheduler_server
+Server started on port 8080
+```
+
+```
+# Then, in a different shell, run the map reduce example.
 mesos_lambda/mesos_lambda_map_reduce $ ruby map_reduce.rb 2> /dev/null
 operator: +
 reducer: *
