@@ -1,0 +1,7 @@
+vendor
+scheduler
+scheduler.*
+GPATH
+GRTAGS
+GTAGS
+.DS_Store

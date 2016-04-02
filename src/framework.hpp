@@ -1,19 +1,3 @@
-// Licensed to the Apache Software Foundation (ASF) under one
-// or more contributor license agreements.  See the NOTICE file
-// distributed with this work for additional information
-// regarding copyright ownership.  The ASF licenses this file
-// to you under the Apache License, Version 2.0 (the
-// "License"); you may not use this file except in compliance
-// with the License.  You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 #include <iostream>
 #include <vector>
 #include <sstream>
@@ -27,8 +11,6 @@
 #include <process/pid.hpp>
 
 #include <stout/check.hpp>
-#include <stout/flags.hpp>
-#include <stout/foreach.hpp>
 #include <stout/hashmap.hpp>
 #include <stout/none.hpp>
 #include <stout/option.hpp>
@@ -50,69 +32,10 @@ using std::endl;
 using std::string;
 using std::vector;
 
-
-class Flags : public flags::FlagsBase
+class MesosLambdaScheduler : public Scheduler
 {
 public:
-  Flags()
-  {
-    add(&master,
-        "master",
-        "Mesos master (e.g., IP1:PORT1)");
-
-    add(&name,
-        "name",
-        "Name for the command");
-
-    add(&command,
-        "command",
-        "Shell command to launch");
-
-    // add(&environment,
-    //     "env",
-    //     "Shell command environment variables.\n"
-    //     "The value could be a JSON formatted string of environment variables"
-    //     "(ie: {\"name1\": \"value1\"} )\n"
-    //     "or a file path containing the JSON formatted environment variables.\n"
-    //     "Path could be of the form 'file:///path/to/file' "
-    //     "or '/path/to/file'.\n");
-
-    add(&resources,
-        "resources",
-        "Resources for the command",
-        "cpus:1;mem:128");
-
-    add(&checkpoint,
-        "checkpoint",
-        "Enable checkpointing for the framework",
-        false);
-
-    add(&docker_image,
-        "docker_image",
-        "Docker image that follows the Docker CLI naming <image>:<tag>."
-        "(ie: ubuntu, busybox:latest).");
-
-    add(&containerizer,
-        "containerizer",
-        "Containerizer to be used (ie: docker, mesos)",
-        "mesos");
-  }
-
-  Option<string> master;
-  Option<string> name;
-  Option<string> command;
-  // Option<hashmap<string, string>> environment;
-  string resources;
-  bool checkpoint;
-  Option<string> docker_image;
-  string containerizer;
-};
-
-
-class CommandScheduler : public Scheduler
-{
-public:
-  CommandScheduler(
+  MesosLambdaScheduler(
       const string& _name,
       const string& _command,
       // const Option<hashmap<string, string>>& _environment,
@@ -127,7 +50,9 @@ public:
       containerizer(_containerizer),
       launched(false) {}
 
-  virtual ~CommandScheduler() {}
+  virtual ~MesosLambdaScheduler() {}
+
+  std::string get_response_payload() { return m_response_payload; }
 
   virtual void registered(
       SchedulerDriver* _driver,
@@ -158,7 +83,7 @@ public:
       return;
     }
 
-    foreach (const Offer& offer, offers) {
+    for (const Offer& offer : offers) {
       if (!launched &&
           Resources(offer.resources()).contains(TASK_RESOURCES.get())) {
         TaskInfo task;
@@ -243,6 +168,8 @@ public:
     cout << "Message: " << status.message() << endl;
 
     if(status.state() == TASK_FINISHED) {
+
+      m_response_payload = std::string(status.data());
       cout << "=== Dumping data ===" << endl;
       cout << status.data() << endl;
       cout << "====================" << endl;
@@ -277,6 +204,8 @@ public:
       const string& message) {}
 
 private:
+  std::string m_response_payload;
+
   const string name;
   const string command;
   // const Option<hashmap<string, string>> environment;
@@ -285,87 +214,3 @@ private:
   const string containerizer;
   bool launched;
 };
-
-
-int main(int argc, char** argv)
-{
-  Flags flags;
-
-  // Load flags from environment and command line.
-  Try<Nothing> load = flags.load(None(), argc, argv);
-
-  if (load.isError()) {
-    cerr << flags.usage(load.error()) << endl;
-    return EXIT_FAILURE;
-  }
-
-  // TODO(marco): this should be encapsulated entirely into the
-  // FlagsBase API - possibly with a 'guard' that prevents FlagsBase
-  // from calling ::exit(EXIT_FAILURE) after calling usage() (which
-  // would be the default behavior); see MESOS-2766.
-  if (flags.help) {
-    cout << flags.usage() << endl;
-    return EXIT_SUCCESS;
-  }
-
-  if (flags.master.isNone()) {
-    cerr << flags.usage("Missing required option --master") << endl;
-    return EXIT_FAILURE;
-  }
-
-  UPID master("master@" + flags.master.get());
-  if (!master) {
-    cerr << flags.usage("Could not parse --master=" + flags.master.get())
-         << endl;
-    return EXIT_FAILURE;
-  }
-
-  if (flags.name.isNone()) {
-    cerr << flags.usage("Missing required option --name") << endl;
-    return EXIT_FAILURE;
-  }
-
-  if (flags.command.isNone()) {
-    cerr << flags.usage("Missing required option --command") << endl;
-    return EXIT_FAILURE;
-  }
-
-  Result<string> user = os::user();
-  if (!user.isSome()) {
-    if (user.isError()) {
-      cerr << "Failed to get username: " << user.error() << endl;
-    } else {
-      cerr << "No username for uid " << ::getuid() << endl;
-    }
-    return EXIT_FAILURE;
-  }
-
-  // Option<hashmap<string, string>> environment = None();
-
-  // if (flags.environment.isSome()) {
-  //   environment = flags.environment.get();
-  // }
-
-  Option<string> dockerImage;
-
-  if (flags.docker_image.isSome()) {
-    dockerImage = flags.docker_image.get();
-  }
-
-  CommandScheduler scheduler(
-      flags.name.get(),
-      flags.command.get(),
-      // environment,
-      flags.resources,
-      dockerImage,
-      flags.containerizer);
-
-  FrameworkInfo framework;
-  framework.set_user(user.get());
-  framework.set_name("");
-  framework.set_checkpoint(flags.checkpoint);
-
-  MesosSchedulerDriver driver(&scheduler, framework, flags.master.get());
-
-  return driver.run() == DRIVER_STOPPED ? EXIT_SUCCESS : EXIT_FAILURE;
-}

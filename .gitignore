@@ -1,3 +1,5 @@
 *.dSYM
 vendor/*
 scheduler
+scheduler_frontend
+scheduler_server
